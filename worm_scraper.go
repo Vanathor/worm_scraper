@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"runtime"
 	"strings"
 
 	"github.com/codegangsta/cli"
@@ -16,7 +15,6 @@ import (
 const (
 	MainSite        = "https://parahumans.wordpress.com/"
 	TableOfContents = "https://parahumans.wordpress.com/table-of-contents/"
-	PageBreak       = `\pagebreak`
 )
 
 type Arc struct {
@@ -157,25 +155,22 @@ func main() {
 	// Define the app
 	app := cli.NewApp()
 	app.Name = "Worm Scraper"
-	app.Usage = "A tool to let you get an updated PDF copy of the serial web novel Worm, by Wildbow"
+	app.Usage = "A tool to let you get an updated EPUB copy of the serial web novel Worm, by Wildbow"
 	app.Version = "1.0"
 	app.Author = "Benjamin Harris"
 
 	// Define the application flags
 	app.Flags = []cli.Flag{
-		cli.BoolFlag{"with-tags, t", "Include the tags each chapter was posted under"},
-		cli.BoolFlag{"with-date, d", "Include the date each chapter was posted"},
-		cli.BoolFlag{"with-link, l", "Include a link to the chapter online"},
-		cli.BoolFlag{"epub", "Save the book as an EPUB instead of a PDF, if possible"},
+		cli.BoolFlag{"pdf", "Save the book as a PDF instead of an EPUB, if possible"},
+		cli.BoolFlag{"with-link", "Include a link to the chapter online"},
+		cli.BoolFlag{"with-tags", "Include the tags each chapter was posted under"},
+		cli.BoolFlag{"with-date", "Include the date each chapter was posted"},
 	}
 
 	// The heart of the application
 	app.Action = func(context *cli.Context) {
 		// Starting the program
 		fmt.Println("Starting to scrape Worm")
-
-		// Use all available CPUs
-		runtime.GOMAXPROCS(runtime.NumCPU())
 
 		// Get the list of arcs from the table of contents
 		fmt.Println("Gathering links from table of contents...")
@@ -247,16 +242,20 @@ func main() {
 		}
 		defer f.Close()
 
+		// Define pagebreak
+		PageBreak := "\n\n"
+
 		// Write the cover
 		f.WriteString("# Worm\n\n")
 		f.WriteString("By Wildbow\n\n")
-		f.WriteString("Website: " + MainSite + PageBreak)
+		f.WriteString("Website: " + MainSite)
 
 		// Now loop through the Arcs
 		for _, arc := range arcs {
-			f.WriteString(arc.Title + PageBreak)
+			f.WriteString(PageBreak + arc.Title)
 			for _, chapter := range arc.Chapters {
-				f.WriteString(chapter.Title + "\n")
+				f.WriteString("\n\n")
+				f.WriteString("## " + chapter.Title + "\n\n")
 				if context.Bool("with-tags") {
 					f.WriteString("**Tags:** " + strings.Join(chapter.Tags, ", ") + "  ")
 				}
@@ -275,20 +274,21 @@ func main() {
 			}
 		}
 
-		// Now let's try to convert the markdown file into a PDF
-		fmt.Print("Attempting to convert Markdown file into a PDF... ")
-		cmdText := []string{"Worm.md", "-o", "Worm.pdf"}
-		if context.Bool("epub") {
-			cmdText = []string{"-S", "Worm.md", "-o", "Worm.epub"}
+		// Now let's try to convert the markdown file into an ebook format (epub, pdf)
+		fmt.Print("Attempting to convert Markdown file... ")
+		cmdText := []string{"-S", "Worm.md", "--epub-chapter-level", "2", "-o", "Worm.epub"}
+		if context.Bool("pdf") {
+			cmdText = []string{"Worm.md", "-o", "Worm.pdf"}
+			PageBreak = `<div style="page-break-after: always;"></div>`
 		}
 		cmd := exec.Command("pandoc", cmdText...)
 		err = cmd.Run()
 		if err != nil {
-			fmt.Println(err)
-			fmt.Print("Failed! There was an error using the required tool (Pandoc). Try installing Pandoc (http://johnmacfarlane.net/pandoc/installing.html) to get the best results. In the meantime, we've left you the Markdown file.")
+			fmt.Println("Conversion failed! Make sure you've installed Pandoc (http://johnmacfarlane.net/pandoc/installing.html) if you want to convert the generated Markdown file to an ebook compatible format. In the meantime, we've left you the Markdown file.")
+		} else {
+			_ = os.Remove("Worm.md")
+			fmt.Println("Completed!")
 		}
-
-		fmt.Println("Completed scrape.")
 	}
 
 	// Run the application
