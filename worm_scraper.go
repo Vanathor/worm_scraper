@@ -93,6 +93,9 @@ func (ch *Chapter) Parse(done chan bool) {
 	// Set the tags
 	doc.Find(".entry-meta a[rel=tag]").Each(func(_ int, s *goquery.Selection) {
 		ch.Tags = append(ch.Tags, s.Text())
+		if len(ch.Tags) == 0 {
+			ch.Tags = append(ch.Tags, "NONE")
+		}
 	})
 
 	// Get the date it was posted
@@ -252,7 +255,7 @@ func main() {
 
 		// Now loop through the Arcs
 		for _, arc := range arcs {
-			f.WriteString(PageBreak + arc.Title)
+			f.WriteString(PageBreak + "# " + arc.Title)
 			for _, chapter := range arc.Chapters {
 				f.WriteString("\n\n")
 				f.WriteString("## " + chapter.Title + "\n\n")
